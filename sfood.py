@@ -26,6 +26,17 @@ cursor = conn.cursor()
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'
 }
+headers_m = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Encoding':'gzip, deflate',
+    'Accept-Language': 'zh-CN,zh;q=0.9',
+    'Cookie': 'Hm_lvt_7263598dfd4db0dc29539a51f116b23a=1532520110; _bhk=BAh7CUkiD3Nlc3Npb25faWQGOgZFVEkiJTFiNzI2NWFlNjNiYjU2OTkwMmJjODAwOGQ5M2NjNjg5BjsARkkiEF9jc3JmX3Rva2VuBjsARkkiMUJYZG5zZStEN1lVeThXNm9weDdyR2x6U1VyVTZpbWY3ZDhOU1IvdjcwNlk9BjsARkkiCHNpZAY7AEZJIiU1Y2JhYjYyMGQ2Yzk3ODUzMmIyMzEzNzhhNDRiOGJjMQY7AEZJIhRtZF9kYl9mb29kX3BhZ2UGOwBGaQY%3D--4ff7e66e585afeb9e170d8e8e2c6268e8c5fdd65; _mboohee_session=VGdFUzdHcEZLVUpsdG5wSndKaXhRRzhiV09NNEtFY2RpdEJWMXpLMUZneXArQk1RcHE5Sm1jYWVXTGoxT0JjelI5aUVNZnl5enQ3THBYOEtsUlZHLzBxQ1U2WThwNURYWDFUdm85bmdwdVFkNXBacE1jSTBtRGFiTks0Qm1yTzkrcVlQZEp3QUJINkxHWlRYcHlCblRBPT0tLXVTWjVkdGVOWXA1N0ZqaVVaWFg3dFE9PQ%3D%3D--8c383d235d52132382b18eb0e5fa82294ee096be; Hm_lpvt_7263598dfd4db0dc29539a51f116b23a=1532678510',
+    'Host':'m.boohee.com',
+    'If-None-Match':'W/"a2b36d2d8b8c5e845dd868ae111cec3e"',
+    'Proxy-Connection':'keep-alive',
+    'Upgrade-Insecure-Requests':'1',
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Mobile Safari/537.36'
+}
 POOL_PROXY_URL = 'http://192.168.9.135:5510/get/'
 proxy = None
 
@@ -34,22 +45,58 @@ def _main():
     cursor.execute(DROP_TABLE_FOODS)
     cursor.execute(CREATE_TABLE_FOODS)
 
+    proxy = get_proxy()
+
+    # pc
     for fpage in xrange(1,11):
         for page in xrange(1,11):
             urls = "http://www.boohee.com/food/group/{fp}?page={p}".format(fp=fpage,p=page)
             try:
-                delgroupurl(urls)
+                delgroupurlPC(urls)
             except Exception as e:
                 print(e)
                 pass
-            
+
+    # m
+    for fpagem in xrange(1, 41):
+        for pagem in xrange(1, 6):
+            urls = "http://m.boohee.com/foods/list?ifood_group_id={gid}&page={p}".format(gid=fpagem, p=pagem)
+            try:
+                delgroupurlM(urls)
+            except Exception as e:
+                print(e)
+                pass
+
 
     conn.close()
 
 
 glourl={}
 
-def delgroupurl(urls):
+
+def delgroupurlM(urls):
+    if urls not in glourl:
+        glourl[urls] = 1
+        htmlcontent = get_index_html_m(urls)
+        print(htmlcontent)
+        doc = pq(htmlcontent)
+        objli = doc('#food-list')
+        lis = objli('li')
+        for li in lis.items():
+            try:
+                sorurl = li('a').attr.href
+                sorurl = '/shiwu/'+sorurl.split('/')[-1]
+                #print(sorurl)
+                delurl(sorurl)
+            except Exception as e:
+                print(e)
+            else:
+                pass
+            finally:
+                pass
+    pass
+
+def delgroupurlPC(urls):
     if urls not in glourl:
         glourl[urls] = 1
         htmlcontent = get_index_html(urls)
@@ -65,7 +112,7 @@ def delgroupurl(urls):
                 pass
             finally:
                 pass
-   
+    pass
 
 
 def delurl(url):
@@ -272,10 +319,10 @@ def get_index_html(url):
                 'http': 'http://' + proxy
             }
             response = requests.get(
-                url, headers=headers, allow_redirects=False, proxies=proxies)
+                url, headers=headers, allow_redirects=False, proxies=proxies, timeout=5)
         else:
             response = requests.get(
-                url, headers=headers, allow_redirects=False)
+                url, headers=headers, allow_redirects=False, timeout=5)
         if response.status_code == 200:
             return response.text
         if response.status_code == 302:
@@ -291,6 +338,36 @@ def get_index_html(url):
     except Exception:
         proxy = get_proxy()
         return get_index_html(url)
+
+def get_index_html_m(url):
+    print('正在爬取', url)
+    global proxy
+    try:
+        if proxy:
+            print('正在使用代理', proxy)
+            proxies = {
+                'http': 'http://' + proxy
+            }
+            response = requests.get(
+                url, headers=headers_m, allow_redirects=False, proxies=proxies, timeout=5)
+        else:
+            response = requests.get(
+                url, headers=headers_m, allow_redirects=False, timeout=5)
+        if response.status_code == 200:
+            return response.text
+        if response.status_code == 302:
+            # Need proxy
+            print('302')
+            proxy = get_proxy()
+            if proxy:
+                return get_index_html_m(url)
+            else:
+                print('请求代理失败')
+                return None
+
+    except Exception:
+        proxy = get_proxy()
+        return get_index_html_m(url)
 
 def get_proxy():
     print('正在请求代理')
